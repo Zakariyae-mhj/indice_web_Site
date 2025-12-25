@@ -2,90 +2,129 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>منصة GIS المناخية المتقدمة</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>منصة GIS المناخية (Mobile Ready)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
     
     <style>
-        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, sans-serif; background: #f8f9fa; overflow: hidden; }
-        #map { height: 100vh; width: 100%; z-index: 1; }
+        /* إعدادات عامة للهاتف */
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, sans-serif; background: #f0f0f0; overflow: hidden; touch-action: none; }
+        #map { height: 100vh; width: 100%; z-index: 1; position: absolute; top: 0; left: 0; }
         
-        /* الشريط الجانبي */
-        .sidebar {
-            position: absolute; top: 20px; right: 20px; width: 320px;
-            background: rgba(255, 255, 255, 0.95); z-index: 2000; padding: 20px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1); border-radius: 12px;
-            display: flex; flex-direction: column; gap: 10px;
-            max-height: 90vh; overflow-y: auto;
-            backdrop-filter: blur(5px);
+        /* --- زر القائمة العائم (للموبايل) --- */
+        .fab-btn {
+            position: absolute; bottom: 20px; right: 20px;
+            width: 55px; height: 55px; border-radius: 50%;
+            background: #3498db; color: white;
+            border: none; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            z-index: 3000; display: none; /* يظهر فقط في الموبايل */
+            font-size: 24px; cursor: pointer; align-items: center; justify-content: center;
         }
-        
+
+        /* --- اللوحة الجانبية (ذكية ومتجاوبة) --- */
+        .sidebar {
+            position: absolute; 
+            z-index: 2000; 
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(10px);
+            transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            display: flex; flex-direction: column; gap: 10px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+        }
+
+        /* تصميم الكمبيوتر (Desktop) */
+        @media (min-width: 769px) {
+            .sidebar {
+                top: 20px; right: 20px; width: 320px;
+                border-radius: 15px; padding: 20px;
+                max-height: 90vh; overflow-y: auto;
+            }
+            .fab-btn { display: none; } /* إخفاء زر الموبايل */
+        }
+
+        /* تصميم الهاتف (Mobile) - Bottom Sheet style */
+        @media (max-width: 768px) {
+            .sidebar {
+                bottom: 0; left: 0; right: 0; width: 100%;
+                border-radius: 20px 20px 0 0; padding: 20px 15px;
+                max-height: 70vh; overflow-y: auto;
+                transform: translateY(110%); /* مخفية افتراضياً */
+                padding-bottom: 80px; /* مساحة لزر الإغلاق */
+            }
+            .sidebar.active { transform: translateY(0); }
+            .fab-btn { display: flex; } /* إظهار زر الموبايل */
+            
+            /* تكبير أزرار الرسم للمس */
+            .leaflet-touch .leaflet-bar a { width: 40px !important; height: 40px !important; line-height: 40px !important; font-size: 18px !important;}
+        }
+
         h2 { font-size: 16px; color: #2c3e50; margin: 0 0 10px 0; border-bottom: 2px solid #3498db; padding-bottom: 8px; font-weight: 800;}
-        
         .control-group { background: #fff; padding: 10px; border: 1px solid #eee; border-radius: 8px; margin-bottom: 5px; }
         .label-title { font-size: 12px; font-weight: 700; color: #555; display: block; margin-bottom: 5px; }
 
         /* أزرار التبديل */
-        .mode-switch { display: flex; gap: 5px; margin-bottom: 5px; }
-        .mode-btn { flex: 1; padding: 6px; border: 1px solid #ccc; background: #f9f9f9; cursor: pointer; border-radius: 4px; font-size: 11px; }
+        .mode-switch { display: flex; gap: 8px; margin-bottom: 5px; }
+        .mode-btn { flex: 1; padding: 10px; border: 1px solid #ddd; background: #f9f9f9; cursor: pointer; border-radius: 6px; font-size: 13px; font-weight: bold;}
         .mode-btn.active { background: #3498db; color: white; border-color: #2980b9; }
 
-        .file-upload {
-            border: 2px dashed #bdc3c7; padding: 10px; text-align: center;
-            border-radius: 6px; cursor: pointer; font-size: 11px; color: #7f8c8d;
-            transition: 0.3s;
-        }
-        .file-upload:hover { border-color: #3498db; color: #3498db; background: #ecf0f1; }
-        
-        input, select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 13px; }
+        /* عناصر التحكم */
+        .file-upload { border: 2px dashed #bdc3c7; padding: 15px; text-align: center; border-radius: 6px; display: block; margin-top: 5px;}
+        input, select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 14px; background: #fff;}
         
         button.action-btn {
-            width: 100%; padding: 10px; border: none; border-radius: 6px; cursor: pointer;
-            font-weight: bold; color: white; transition: 0.3s; font-size: 13px; margin-top: 5px;
+            width: 100%; padding: 14px; border: none; border-radius: 8px; cursor: pointer;
+            font-weight: bold; color: white; transition: 0.3s; font-size: 15px; margin-top: 8px;
             box-shadow: 0 3px 5px rgba(0,0,0,0.1);
         }
         .btn-run { background: linear-gradient(135deg, #27ae60, #2ecc71); }
-        .btn-run:hover { transform: translateY(-1px); }
-        .btn-export { background: linear-gradient(135deg, #e67e22, #d35400); display: none; margin-top: 10px; }
+        .btn-export { background: linear-gradient(135deg, #e67e22, #d35400); display: none; }
 
         /* شريط التحميل */
-        .loader { width: 100%; height: 3px; background: #eee; margin-top: 10px; border-radius: 2px; overflow: hidden; display: none; }
+        .loader { width: 100%; height: 4px; background: #eee; margin-top: 10px; border-radius: 2px; overflow: hidden; display: none; }
         .loader .bar { width: 0%; height: 100%; background: #3498db; transition: width 0.3s; }
         
-        #statusMsg { font-size: 11px; text-align: center; color: #777; margin-top: 5px; min-height: 15px; }
+        #statusMsg { font-size: 12px; text-align: center; color: #777; margin-top: 5px; min-height: 18px; }
         
-        /* أدوات التحكم بالخريطة (شفافية + سحب) */
-        .map-tools { display: none; margin-top: 10px; border-top: 1px solid #eee; padding-top: 10px; }
-        .slider-container { margin-bottom: 8px; }
-        .slider-label { display: flex; justify-content: space-between; font-size: 11px; color: #666; margin-bottom: 2px; }
-        input[type=range] { width: 100%; cursor: pointer; }
+        /* أدوات الخريطة (شفافية) */
+        .map-tools { display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee; }
+        .slider-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; font-size: 12px; color: #555; }
+        input[type=range] { flex: 1; margin: 0 10px; height: 5px; }
 
-        /* المفتاح الجانبي */
+        /* المفتاح */
         .legend {
-            background: white; padding: 10px; border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1); position: absolute; bottom: 25px; left: 20px;
-            z-index: 1000; display: none; font-size: 11px; font-weight: bold; width: 140px;
+            background: rgba(255,255,255,0.9); padding: 8px; border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2); position: absolute; bottom: 25px; left: 10px;
+            z-index: 1000; display: none; font-size: 10px; font-weight: bold; width: 110px;
+            pointer-events: none; /* لعدم إعاقة اللمس */
         }
-        .legend-item { display: flex; align-items: center; margin-bottom: 3px; }
-        .legend-color { width: 15px; height: 15px; margin-right: 8px; border: 1px solid #ccc; }
+        .legend-item { display: flex; align-items: center; margin-bottom: 2px; }
+        .legend-color { width: 12px; height: 12px; margin-right: 5px; border: 1px solid #ccc; }
+
+        /* زر إغلاق للقائمة في الموبايل */
+        .close-sidebar { display: none; text-align: center; margin-bottom: 10px; cursor: pointer; color: #888; }
+        @media (max-width: 768px) { .close-sidebar { display: block; } }
     </style>
 </head>
 <body>
 
-<div class="sidebar">
-    <h2>منصة التحليل المناخي (GIS Ready)</h2>
+<button class="fab-btn" onclick="toggleSidebar()">⚙️</button>
+
+<div class="sidebar" id="sidebar">
+    <div class="close-sidebar" onclick="toggleSidebar()">⬇️ إخفاء القائمة</div>
+    
+    <h2>🌍 منصة GIS المناخية</h2>
 
     <div class="control-group">
         <span class="label-title">1. مجال الدراسة:</span>
         <div class="mode-switch">
-            <button class="mode-btn active" onclick="setMode('draw')">رسم يدوي ✏️</button>
-            <button class="mode-btn" onclick="setMode('kml')">رفع KML 📂</button>
+            <button class="mode-btn active" onclick="setMode('draw')">رسم ✏️</button>
+            <button class="mode-btn" onclick="setMode('kml')">ملف KML 📂</button>
         </div>
         
         <div id="drawSection">
-            <p style="font-size:11px; color:#888; margin:0;">استخدم أدوات الرسم على اليسار.</p>
+            <p style="font-size:12px; color:#888; margin:5px 0;">اضغط على أيقونة المضلع في الخريطة للرسم.</p>
         </div>
         <div id="kmlSection" style="display:none;">
             <label for="kmlInput" class="file-upload">
@@ -97,13 +136,11 @@
 
     <div class="control-group">
         <span class="label-title">2. المعايير:</span>
-        <div style="display:flex; gap:5px; margin-bottom:5px;">
+        <div style="display:flex; gap:10px;">
             <div style="flex:1">
-                <label style="font-size:10px;">السنة:</label>
-                <input type="number" id="yearInput" min="1950" max="2024" value="2022">
+                <input type="number" id="yearInput" placeholder="السنة" min="1950" max="2024" value="2022">
             </div>
             <div style="flex:2">
-                <label style="font-size:10px;">المتغير:</label>
                 <select id="variableSelect">
                     <option value="rain">التساقطات (mm)</option>
                     <option value="temp">الحرارة (°C)</option>
@@ -112,23 +149,23 @@
         </div>
     </div>
 
-    <button class="action-btn btn-run" id="analyzeBtn" onclick="startAnalysis()">تشغيل التحليل</button>
+    <button class="action-btn btn-run" id="analyzeBtn" onclick="startAnalysis()">🚀 تشغيل التحليل</button>
     
     <div class="loader" id="loader"><div class="bar" id="progressBar"></div></div>
     <div id="statusMsg"></div>
 
     <div class="map-tools" id="mapTools">
-        <div class="slider-container">
-            <div class="slider-label"><span>الشفافية (Transparency)</span><span id="transVal">100%</span></div>
+        <div class="slider-row">
+            <span>شفافية</span>
             <input type="range" min="0" max="100" value="100" oninput="updateTransparency(this.value)">
         </div>
-        <div class="slider-container">
-            <div class="slider-label"><span>أداة السحب (Swipe)</span><span>↔</span></div>
+        <div class="slider-row">
+            <span>Swip ↔</span>
             <input type="range" min="0" max="100" value="100" oninput="updateSwipe(this.value)">
         </div>
         
         <button class="action-btn btn-export" id="exportBtn" onclick="exportRaster()">
-            ⬇️ تحميل للـ ArcGIS (.asc)
+            📥 تحميل (ArcGIS .asc)
         </button>
     </div>
 </div>
@@ -144,7 +181,11 @@
 
 <script>
     // --- إعداد الخريطة ---
-    const map = L.map('map').setView([32, -6], 6);
+    const map = L.map('map', { zoomControl: false }).setView([32, -6], 6);
+    
+    // نقل أزرار الزوم لليمين لتسهيل الوصول بالإبهام
+    L.control.zoom({ position: 'topright' }).addTo(map);
+
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
         attribution: '© OpenStreetMap | ERA5-Land'
     }).addTo(map);
@@ -152,20 +193,33 @@
     const drawnItems = new L.FeatureGroup();
     map.addLayer(drawnItems);
 
+    // أدوات الرسم (موضع مناسب للهاتف)
     const drawControl = new L.Control.Draw({
         draw: { polyline: false, marker: false, circlemarker: false, circle: false, polygon: true, rectangle: true },
-        edit: { featureGroup: drawnItems }
+        edit: { featureGroup: drawnItems },
+        position: 'topleft' // في الموبايل ستكون في الأعلى
     });
     map.addControl(drawControl);
+
+    // --- منطق الواجهة المتجاوبة ---
+    const sidebar = document.getElementById('sidebar');
+    
+    function toggleSidebar() {
+        sidebar.classList.toggle('active');
+    }
+
+    // إغلاق القائمة تلقائياً عند بدء الرسم (لتحسين تجربة المستخدم)
+    map.on('draw:drawstart', function() {
+        if(window.innerWidth < 768) sidebar.classList.remove('active');
+    });
 
     // متغيرات النظام
     let userPolygon = null;
     let canvasLayer = null;
-    let globalPoints = []; // البيانات الخام
-    let swipeValue = 1.0;  // قيمة السحب (0 - 1)
-    let opacityValue = 1.0; // قيمة الشفافية
+    let globalPoints = [];
+    let swipeValue = 1.0;
+    let opacityValue = 1.0;
 
-    // --- واجهة المستخدم ---
     function setMode(mode) {
         document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
         event.target.classList.add('active');
@@ -177,7 +231,9 @@
         drawnItems.clearLayers();
         drawnItems.addLayer(e.layer);
         userPolygon = e.layer.toGeoJSON();
-        showStatus("تم تحديد المجال يدوياً.", "green");
+        showStatus("تم التحديد. افتح القائمة للتحليل.", "green");
+        // فتح القائمة تلقائياً بعد الرسم في الموبايل
+        if(window.innerWidth < 768) setTimeout(()=>sidebar.classList.add('active'), 500);
     });
 
     document.getElementById('kmlInput').addEventListener('change', (e) => {
@@ -205,6 +261,9 @@
     async function startAnalysis() {
         if (!userPolygon) { alert("حدد المجال أولاً"); return; }
         
+        // إخفاء القائمة في الموبايل لرؤية التحميل
+        if(window.innerWidth < 768) sidebar.classList.remove('active');
+
         const ui = {
             btn: document.getElementById('analyzeBtn'),
             loader: document.getElementById('loader'),
@@ -218,54 +277,53 @@
         if (canvasLayer) map.removeLayer(canvasLayer);
 
         try {
-            showStatus("تحليل المجال الجغرافي...");
+            showStatus("تحليل...");
             const bbox = turf.bbox(userPolygon);
             const area = turf.area(userPolygon) / 1000000;
             
-            // شبكة نقاط ذكية
             let spacing = Math.sqrt(area) / 15;
             if (spacing < 1.5) spacing = 1.5; if (spacing > 30) spacing = 30;
             
             const grid = turf.pointGrid(bbox, spacing, {units: 'kilometers', mask: userPolygon});
             let points = grid.features;
             
-            // تحسين الأداء: تقليص عدد النقاط إذا كان كبيراً جداً
             if (points.length > 200) points = points.filter((_, i) => i % 2 === 0);
             if (points.length === 0) points = [turf.centroid(userPolygon)];
 
             ui.bar.style.width = '40%';
-            showStatus(`جلب بيانات ${points.length} نقطة...`);
+            showStatus(`جلب ${points.length} نقطة...`);
 
             const year = document.getElementById('yearInput').value;
             const variable = document.getElementById('variableSelect').value;
             
-            // جلب البيانات
             globalPoints = await fetchData(points, year, variable);
             
-            if (globalPoints.length === 0) throw new Error("لا توجد بيانات");
+            if (globalPoints.length === 0) throw new Error("لا بيانات");
 
             ui.bar.style.width = '80%';
-            showStatus("جاري الرسم...");
+            showStatus("رسم...");
 
             drawLayer(globalPoints, userPolygon, variable);
 
             ui.bar.style.width = '100%';
-            showStatus("تم بنجاح!", "green");
+            showStatus("تم!", "green");
             ui.tools.style.display = 'block';
+            
+            // إعادة فتح القائمة في الموبايل لرؤية النتائج وأزرار التحميل
+            if(window.innerWidth < 768) sidebar.classList.add('active');
 
         } catch (err) {
             showStatus("خطأ: " + err.message, "red");
-            console.error(err);
+            if(window.innerWidth < 768) sidebar.classList.add('active'); // إظهار الخطأ
         } finally {
             ui.btn.disabled = false; setTimeout(() => ui.loader.style.display = 'none', 1000);
         }
     }
 
-    // --- جلب البيانات ---
     async function fetchData(points, year, variable) {
         const apiVar = variable === 'rain' ? 'precipitation_sum' : 'temperature_2m_mean';
         const validData = [];
-        const batchSize = 15; // طلبات متوازية
+        const batchSize = 15;
         
         for (let i = 0; i < points.length; i += batchSize) {
             const batch = points.slice(i, i + batchSize);
@@ -277,11 +335,7 @@
                     const d = await r.json();
                     const vals = d.daily[apiVar].filter(v => v !== null && !isNaN(v));
                     if (!vals.length) return;
-                    
-                    let val = variable === 'rain' 
-                        ? vals.reduce((a,b)=>a+b, 0) 
-                        : vals.reduce((a,b)=>a+b, 0) / vals.length;
-                    
+                    let val = variable === 'rain' ? vals.reduce((a,b)=>a+b, 0) : vals.reduce((a,b)=>a+b, 0) / vals.length;
                     validData.push({lat, lng, val});
                 } catch(e){}
             });
@@ -290,13 +344,10 @@
         return validData;
     }
 
-    // --- الرسم والتحكم (Canvas Layer) ---
     function drawLayer(points, polygon, variable) {
         const vals = points.map(p => p.val);
         const min = Math.min(...vals);
         const max = Math.max(...vals) + 0.01;
-        
-        // حساب الفئات (10 Classes)
         const classes = [];
         const step = (max - min) / 10;
         for(let i=0; i<10; i++) classes.push(min + i*step);
@@ -317,20 +368,15 @@
                 if (!this._map) return;
                 const ctx = this._canvas.getContext('2d');
                 const size = this._map.getSize();
-                
-                this._canvas.width = size.x;
-                this._canvas.height = size.y;
+                this._canvas.width = size.x; this._canvas.height = size.y;
                 L.DomUtil.setPosition(this._canvas, this._map.containerPointToLayerPoint([0, 0]));
-                
                 ctx.clearRect(0, 0, size.x, size.y);
                 
-                // تطبيق Swipe (القص الأفقي)
                 ctx.save();
                 ctx.beginPath();
                 ctx.rect(0, 0, size.x * swipeValue, size.y);
                 ctx.clip();
 
-                // تطبيق قناع المضلع
                 ctx.beginPath();
                 const drawPoly = (coords) => {
                     const pts = coords.map(c => this._map.latLngToContainerPoint([c[1], c[0]]));
@@ -338,65 +384,42 @@
                     ctx.moveTo(pts[0].x, pts[0].y);
                     pts.forEach(p => ctx.lineTo(p.x, p.y));
                 };
-                
                 const geom = polygon.geometry;
                 if(geom.type === 'MultiPolygon') geom.coordinates.forEach(r => r.forEach(drawPoly));
                 else geom.coordinates.forEach(drawPoly);
                 ctx.clip();
 
-                // رسم النقاط المتدرجة
                 ctx.globalAlpha = opacityValue;
                 points.forEach(p => {
                     const pt = this._map.latLngToContainerPoint([p.lat, p.lng]);
-                    const radius = (size.x / 10) * 1.5; // نصف قطر كبير للتداخل
-                    
+                    const radius = (size.x / 10) * 1.5;
                     const grd = ctx.createRadialGradient(pt.x, pt.y, 1, pt.x, pt.y, radius);
                     const color = getClassColor(p.val, min, max, variable);
-                    
                     grd.addColorStop(0, color);
-                    grd.addColorStop(1, color.replace(')', ', 0)').replace('rgb', 'rgba')); // شفاف عند الحواف
-                    
+                    grd.addColorStop(1, color.replace(')', ', 0)').replace('rgb', 'rgba'));
                     ctx.fillStyle = grd;
-                    ctx.beginPath();
-                    ctx.arc(pt.x, pt.y, radius, 0, 2 * Math.PI);
-                    ctx.fill();
+                    ctx.beginPath(); ctx.arc(pt.x, pt.y, radius, 0, 2 * Math.PI); ctx.fill();
                 });
                 ctx.restore();
             }
         });
-
         canvasLayer = new L.CanvasLayer();
         map.addLayer(canvasLayer);
         updateLegend(min, max, variable, step);
     }
 
-    // --- أدوات التحكم (Swipe & Opacity) ---
-    function updateTransparency(val) {
-        opacityValue = val / 100;
-        document.getElementById('transVal').innerText = val + '%';
-        if (canvasLayer) canvasLayer._update();
-    }
+    function updateTransparency(val) { opacityValue = val / 100; if (canvasLayer) canvasLayer._update(); }
+    function updateSwipe(val) { swipeValue = val / 100; if (canvasLayer) canvasLayer._update(); }
 
-    function updateSwipe(val) {
-        swipeValue = val / 100;
-        if (canvasLayer) canvasLayer._update();
-    }
-
-    // --- نظام الألوان (10 فئات) ---
     function getClassColor(val, min, max, type) {
         const t = (val - min) / (max - min);
-        // ألوان متقطعة (Discrete Colors) لـ 10 فئات
         if (type === 'rain') {
-            // تدرج: أحمر -> أصفر -> أزرق
             const colors = ['#d73027', '#f46d43', '#fdae61', '#fee090', '#ffffbf', '#e0f3f8', '#abd9e9', '#74add1', '#4575b4', '#313695'];
-            let idx = Math.floor(t * 10);
-            if(idx > 9) idx = 9;
+            let idx = Math.floor(t * 10); if(idx > 9) idx = 9;
             return hexToRgbString(colors[idx]);
         } else {
-            // تدرج: أزرق -> أصفر -> أحمر
             const colors = ['#313695', '#4575b4', '#74add1', '#abd9e9', '#e0f3f8', '#ffffbf', '#fee090', '#fdae61', '#f46d43', '#d73027'];
-            let idx = Math.floor(t * 10);
-            if(idx > 9) idx = 9;
+            let idx = Math.floor(t * 10); if(idx > 9) idx = 9;
             return hexToRgbString(colors[idx]);
         }
     }
@@ -406,56 +429,42 @@
         return `rgb(${r}, ${g}, ${b})`;
     }
 
-    // --- المفتاح (Legend) ---
     function updateLegend(min, max, variable, step) {
         const legend = document.getElementById('legend');
-        legend.innerHTML = `<div><strong>${variable==='rain'?'التساقطات (mm)':'الحرارة (°C)'}</strong></div>`;
+        legend.innerHTML = `<div>${variable==='rain'?'مطر (mm)':'حرارة (°C)'}</div>`;
         legend.style.display = 'block';
-        
         for(let i=9; i>=0; i--) {
             const valStart = min + (i * step);
             const valEnd = min + ((i+1) * step);
-            // نحصل على لون منتصف الفئة
             const color = getClassColor(valStart + step/2, min, max, variable);
-            
             const row = document.createElement('div');
             row.className = 'legend-item';
-            row.innerHTML = `<div class="legend-color" style="background:${color}"></div>
-                             <span>${valStart.toFixed(1)} - ${valEnd.toFixed(1)}</span>`;
+            row.innerHTML = `<div class="legend-color" style="background:${color}"></div><span>${Math.round(valStart)}-${Math.round(valEnd)}</span>`;
             legend.appendChild(row);
         }
     }
 
-    // --- التصدير بصيغة GIS (.asc) ---
     function exportRaster() {
         if (!globalPoints.length) return;
         const bbox = turf.bbox(userPolygon);
-        const resolution = 0.008333; // حوالي 1 كم (دقة ERA5 تقريباً)
+        const resolution = 0.008333;
         const ncols = Math.ceil((bbox[2] - bbox[0]) / resolution);
         const nrows = Math.ceil((bbox[3] - bbox[1]) / resolution);
-        
         let header = `NCOLS ${ncols}\nNROWS ${nrows}\nXLLCORNER ${bbox[0]}\nYLLCORNER ${bbox[1]}\nCELLSIZE ${resolution}\nNODATA_VALUE -9999\n`;
         let body = "";
-
-        // تحضير البيانات للبحث السريع
         const pointCollection = turf.featureCollection(globalPoints.map(p => turf.point([p.lng, p.lat], {val: p.val})));
-
-        for (let r = nrows - 1; r >= 0; r--) { // من الأعلى للأسفل
+        for (let r = nrows - 1; r >= 0; r--) {
             const y = bbox[1] + (r * resolution) + (resolution/2);
             let rowVals = [];
             for (let c = 0; c < ncols; c++) {
                 const x = bbox[0] + (c * resolution) + (resolution/2);
                 if (turf.booleanPointInPolygon([x, y], userPolygon)) {
-                    // البحث عن أقرب قيمة (Nearest Neighbor)
                     const nearest = turf.nearestPoint([x, y], pointCollection);
                     rowVals.push(nearest.properties.val.toFixed(2));
-                } else {
-                    rowVals.push("-9999");
-                }
+                } else rowVals.push("-9999");
             }
             body += rowVals.join(" ") + "\n";
         }
-
         const blob = new Blob([header + body], {type: "text/plain"});
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
@@ -464,9 +473,7 @@
     }
 
     function showStatus(msg, color='gray') {
-        const el = document.getElementById('statusMsg');
-        el.innerText = msg;
-        el.style.color = color;
+        const el = document.getElementById('statusMsg'); el.innerText = msg; el.style.color = color;
     }
 </script>
 </body>
