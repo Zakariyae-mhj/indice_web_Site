@@ -2,29 +2,55 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>أداة الاستقراء المكاني (IDW Analysis)</title>
+    <title>المحلل المناخي الذكي | GIS Interpolation</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
-        body { margin: 0; padding: 0; }
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         #map { height: 100vh; width: 100%; }
+        
+        /* لوحة التحكم العائمة */
         .controls {
-            position: absolute; top: 10px; right: 10px; z-index: 1000;
-            background: white; padding: 15px; border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.2); width: 250px;
+            position: absolute; top: 20px; right: 20px; z-index: 1000;
+            background: rgba(255, 255, 255, 0.95); padding: 20px; 
+            border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); 
+            width: 280px; text-align: right;
         }
+        h2 { margin: 0 0 10px 0; font-size: 18px; color: #333; }
+        p { font-size: 13px; color: #666; margin-bottom: 15px; }
+        
+        button {
+            width: 100%; padding: 10px; background-color: #2c3e50; color: white;
+            border: none; border-radius: 5px; cursor: pointer; font-size: 14px;
+            transition: 0.3s;
+        }
+        button:hover { background-color: #34495e; }
+        button:disabled { background-color: #95a5a6; cursor: not-allowed; }
+        
+        #status { margin-top: 10px; font-size: 12px; font-weight: bold; color: #e67e22; min-height: 20px;}
+
+        /* مفتاح الخريطة Legend */
+        .legend {
+            line-height: 18px; color: #555; background: white; padding: 10px;
+            border-radius: 5px; box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            position: absolute; bottom: 30px; left: 30px; z-index: 1000;
+            display: none; /* مخفي في البداية */
+        }
+        .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.7; }
     </style>
 </head>
 <body>
 
 <div class="controls">
-    <h3>إعدادات التحليل</h3>
-    <p>سيتم توليد نقاط عشوائية وعمل استقراء لها.</p>
-    <button onclick="runInterpolation()">تشغيل التحليل (IDW)</button>
-    <div id="status" style="margin-top:10px; color:blue;"></div>
+    <h2>أداة الاستقراء الحراري (IDW)</h2>
+    <p>قم بتحريك الخريطة إلى منطقة الدراسة، ثم اضغط "تحليل" لجلب بيانات الحرارة ورسم الخريطة.</p>
+    <button id="analyzeBtn" onclick="startAnalysis()">تحليل المنطقة الحالية</button>
+    <div id="status"></div>
 </div>
+
+<div id="legend" class="legend"></div>
 
 <div id="map"></div>
 
@@ -32,82 +58,162 @@
 <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
 
 <script>
-    // 1. إعداد الخريطة
-    const map = L.map('map').setView([34.0, -5.0], 6); // وسط المغرب تقريباً
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: 'Map data &copy; OpenStreetMap contributors'
+    // 1. إعداد الخريطة (مركزة على المغرب افتراضياً)
+    const map = L.map('map').setView([32.0, -6.0], 6);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap &copy; CARTO'
     }).addTo(map);
 
-    let dataLayer = null; // طبقة النقاط
-    let gridLayer = null; // طبقة النتيجة
+    let gridLayer = null;
+    let pointsLayer = null;
 
-    // 2. دالة لتوليد بيانات عشوائية للتجربة (نقاط وهمية)
-    function generateRandomPoints() {
-        // إنشاء 50 نقطة عشوائية داخل صندوق حدودي (Bbox)
-        const points = turf.randomPoint(50, {bbox: [-6, 33, -4, 35]});
+    // 2. دالة البدء (يتم استدعاؤها عند ضغط الزر)
+    async function startAnalysis() {
+        const btn = document.getElementById('analyzeBtn');
+        const status = document.getElementById('status');
         
-        // إضافة قيمة "value" عشوائية لكل نقطة (مثلاً: كمية الأمطار)
-        turf.featureEach(points, function (currentFeature) {
-            currentFeature.properties.value = Math.random() * 100;
-        });
-        
-        return points;
-    }
+        // تعطيل الزر أثناء العمل
+        btn.disabled = true;
+        status.innerText = "1. جاري تحديد نقاط العينة...";
 
-    // عرض النقاط الأصلية على الخريطة
-    const samplePoints = generateRandomPoints();
-    dataLayer = L.geoJSON(samplePoints, {
-        pointToLayer: function (feature, latlng) {
-            return L.circleMarker(latlng, {radius: 5, color: 'blue', fillColor: 'blue'});
-        }
-    }).addTo(map);
-    map.fitBounds(dataLayer.getBounds());
+        // تنظيف الطبقات القديمة
+        if (gridLayer) map.removeLayer(gridLayer);
+        if (pointsLayer) map.removeLayer(pointsLayer);
+        document.getElementById('legend').style.display = 'none';
 
-    // 3. الدالة الرئيسية: تنفيذ الاستقراء (Interpolation)
-    function runInterpolation() {
-        document.getElementById('status').innerText = "جاري المعالجة...";
-
-        setTimeout(() => {
-            // إعدادات الشبكة
-            const cellSize = 5; // حجم الخلية بالكيلومتر (كلما صغر الرقم زادت الدقة والبطء)
-            const options = {
-                gridType: 'hex', // شكل الخلية: مسدس (أفضل بصرياً) أو مربع 'square'
-                property: 'value', // الحقل الذي سنقوم باستقرائه
-                units: 'kilometers'
-            };
-
-            // ** السحر هنا: Turf يقوم بحساب IDW **
-            // ملاحظة: turf.interpolate يستخدم IDW افتراضياً
-            const grid = turf.interpolate(samplePoints, cellSize, options);
-
-            // تلوين النتيجة (Styling)
-            if (gridLayer) map.removeLayer(gridLayer);
+        try {
+            // الحصول على حدود الخريطة الحالية
+            const bounds = map.getBounds();
+            const bbox = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()];
             
-            gridLayer = L.geoJSON(grid, {
-                style: function(feature) {
-                    const val = feature.properties.value;
-                    return {
-                        fillColor: getColor(val),
-                        weight: 0.5,
-                        opacity: 1,
-                        color: 'white',
-                        fillOpacity: 0.7
-                    };
-                }
-            }).addTo(map);
+            // إنشاء شبكة نقاط (Resolution) - كلما قل الرقم زادت الدقة والوقت
+            // نستخدم دقة ديناميكية حسب الزوم لتجنب تجميد المتصفح
+            const zoom = map.getZoom();
+            const cellSide = zoom > 9 ? 5 : (zoom > 7 ? 15 : 30); // بالكيلومتر
+            
+            // توليد نقاط وهمية (Grid) لطلب البيانات لها
+            const gridPoints = turf.pointGrid(bbox, cellSide, {units: 'kilometers'});
+            
+            // تحديد عدد النقاط الأقصى لتجنب الضغط على API (مثلاً 50 نقطة كحد أقصى للعرض)
+            const limitedPoints = gridPoints.features.slice(0, 60); 
 
-            document.getElementById('status').innerText = "تم التحليل بنجاح!";
-        }, 100); // تأخير بسيط للسماح للمتصفح بالتحديث
+            if (limitedPoints.length < 3) {
+                throw new Error("المنطقة صغيرة جداً أو الزوم بعيد جداً. يرجى التقريب أكثر.");
+            }
+
+            status.innerText = `2. جلب البيانات لـ ${limitedPoints.length} نقطة...`;
+
+            // جلب البيانات من Open-Meteo
+            const pointsWithData = await fetchClimateData(limitedPoints);
+
+            status.innerText = "3. جاري حساب الاستقراء (Interpolation)...";
+
+            // إعطاء فرصة للمتصفح لتحديث الواجهة قبل العملية الحسابية الثقيلة
+            setTimeout(() => {
+                runIDW(pointsWithData, cellSide);
+                status.innerText = "تم التحليل بنجاح! ✅";
+                btn.disabled = false;
+            }, 100);
+
+        } catch (error) {
+            console.error(error);
+            status.innerText = "حدث خطأ: " + error.message;
+            status.style.color = "red";
+            btn.disabled = false;
+        }
     }
 
-    // دالة مساعدة للتلوين (Color Ramp)
-    function getColor(d) {
-        return d > 80 ? '#800026' :
-               d > 60 ? '#BD0026' :
-               d > 40 ? '#E31A1C' :
-               d > 20 ? '#FC4E2A' :
-               d > 10 ? '#FD8D3C' :
-                        '#FFEDA0';
+    // 3. دالة جلب البيانات من API
+    async function fetchClimateData(features) {
+        const promises = features.map(async (feature) => {
+            const [lng, lat] = feature.geometry.coordinates;
+            // API مجاني للطقس
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true`;
+            
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                feature.properties.value = data.current_weather.temperature;
+                return feature;
+            } catch (e) {
+                return null;
+            }
+        });
+
+        const results = await Promise.all(promises);
+        return turf.featureCollection(results.filter(f => f !== null));
+    }
+
+    // 4. خوارزمية الاستقراء (IDW) والتلوين
+    function runIDW(dataCollection, cellSide) {
+        // حساب IDW
+        // cellSide / 2 لزيادة دقة الشبكة الناتجة قليلاً
+        const grid = turf.interpolate(dataCollection, cellSide / 1.5, {
+            gridType: 'hex', // شكل خلايا سداسي
+            property: 'value',
+            units: 'kilometers',
+            weight: 1 // معامل الوزن
+        });
+
+        // العثور على أقل وأعلى قيمة لضبط الألوان
+        let min = Infinity, max = -Infinity;
+        turf.featureEach(dataCollection, (f) => {
+            const val = f.properties.value;
+            if (val < min) min = val;
+            if (val > max) max = val;
+        });
+
+        // رسم طبقة الاستقراء
+        gridLayer = L.geoJSON(grid, {
+            style: function(feature) {
+                return {
+                    fillColor: getColor(feature.properties.value, min, max),
+                    weight: 0.5,
+                    opacity: 0.3,
+                    color: 'white',
+                    fillOpacity: 0.7
+                };
+            }
+        }).addTo(map);
+
+        // رسم نقاط العينة الأصلية (اختياري - للتوضيح)
+        pointsLayer = L.geoJSON(dataCollection, {
+            pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+                radius: 4, fillOpacity: 0.8, color: '#333', weight: 1, fillColor: '#fff'
+            })
+        }).addTo(map);
+
+        // تحديث المفتاح (Legend)
+        updateLegend(min, max);
+    }
+
+    // دالة الألوان (تدرج من الأزرق للأحمر)
+    function getColor(d, min, max) {
+        const range = max - min;
+        const percent = (d - min) / range; // نسبة مئوية 0 إلى 1
+
+        // ألوان حرارية بسيطة
+        if (percent > 0.8) return '#bd0026'; // حار جداً
+        if (percent > 0.6) return '#f03b20';
+        if (percent > 0.4) return '#fd8d3c';
+        if (percent > 0.2) return '#fecc5c';
+        return '#ffffb2'; // بارد
+    }
+
+    // إنشاء مفتاح الخريطة
+    function updateLegend(min, max) {
+        const legend = document.getElementById('legend');
+        legend.style.display = 'block';
+        legend.innerHTML = `<strong>درجة الحرارة (°C)</strong><br>`;
+        
+        const grades = [1, 0.8, 0.6, 0.4, 0.2, 0];
+        const range = max - min;
+
+        grades.forEach(grade => {
+            const val = min + (range * grade);
+            const color = getColor(val, min, max);
+            legend.innerHTML += `<i style="background:${color}"></i> ${val.toFixed(1)}<br>`;
+        });
     }
 </script>
 
