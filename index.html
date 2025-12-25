@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>أداة الاستقراء المكاني (IDW Analysis)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        body { margin: 0; padding: 0; }
+        #map { height: 100vh; width: 100%; }
+        .controls {
+            position: absolute; top: 10px; right: 10px; z-index: 1000;
+            background: white; padding: 15px; border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2); width: 250px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="controls">
+    <h3>إعدادات التحليل</h3>
+    <p>سيتم توليد نقاط عشوائية وعمل استقراء لها.</p>
+    <button onclick="runInterpolation()">تشغيل التحليل (IDW)</button>
+    <div id="status" style="margin-top:10px; color:blue;"></div>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+
+<script>
+    // 1. إعداد الخريطة
+    const map = L.map('map').setView([34.0, -5.0], 6); // وسط المغرب تقريباً
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: 'Map data &copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    let dataLayer = null; // طبقة النقاط
+    let gridLayer = null; // طبقة النتيجة
+
+    // 2. دالة لتوليد بيانات عشوائية للتجربة (نقاط وهمية)
+    function generateRandomPoints() {
+        // إنشاء 50 نقطة عشوائية داخل صندوق حدودي (Bbox)
+        const points = turf.randomPoint(50, {bbox: [-6, 33, -4, 35]});
+        
+        // إضافة قيمة "value" عشوائية لكل نقطة (مثلاً: كمية الأمطار)
+        turf.featureEach(points, function (currentFeature) {
+            currentFeature.properties.value = Math.random() * 100;
+        });
+        
+        return points;
+    }
+
+    // عرض النقاط الأصلية على الخريطة
+    const samplePoints = generateRandomPoints();
+    dataLayer = L.geoJSON(samplePoints, {
+        pointToLayer: function (feature, latlng) {
+            return L.circleMarker(latlng, {radius: 5, color: 'blue', fillColor: 'blue'});
+        }
+    }).addTo(map);
+    map.fitBounds(dataLayer.getBounds());
+
+    // 3. الدالة الرئيسية: تنفيذ الاستقراء (Interpolation)
+    function runInterpolation() {
+        document.getElementById('status').innerText = "جاري المعالجة...";
+
+        setTimeout(() => {
+            // إعدادات الشبكة
+            const cellSize = 5; // حجم الخلية بالكيلومتر (كلما صغر الرقم زادت الدقة والبطء)
+            const options = {
+                gridType: 'hex', // شكل الخلية: مسدس (أفضل بصرياً) أو مربع 'square'
+                property: 'value', // الحقل الذي سنقوم باستقرائه
+                units: 'kilometers'
+            };
+
+            // ** السحر هنا: Turf يقوم بحساب IDW **
+            // ملاحظة: turf.interpolate يستخدم IDW افتراضياً
+            const grid = turf.interpolate(samplePoints, cellSize, options);
+
+            // تلوين النتيجة (Styling)
+            if (gridLayer) map.removeLayer(gridLayer);
+            
+            gridLayer = L.geoJSON(grid, {
+                style: function(feature) {
+                    const val = feature.properties.value;
+                    return {
+                        fillColor: getColor(val),
+                        weight: 0.5,
+                        opacity: 1,
+                        color: 'white',
+                        fillOpacity: 0.7
+                    };
+                }
+            }).addTo(map);
+
+            document.getElementById('status').innerText = "تم التحليل بنجاح!";
+        }, 100); // تأخير بسيط للسماح للمتصفح بالتحديث
+    }
+
+    // دالة مساعدة للتلوين (Color Ramp)
+    function getColor(d) {
+        return d > 80 ? '#800026' :
+               d > 60 ? '#BD0026' :
+               d > 40 ? '#E31A1C' :
+               d > 20 ? '#FC4E2A' :
+               d > 10 ? '#FD8D3C' :
+                        '#FFEDA0';
+    }
+</script>
+
+</body>
+</html>
