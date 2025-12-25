@@ -2,93 +2,84 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>منصة التحليل المناخي الاحترافي</title>
+    <title>منصة التحليل المناخي (ERA5-Land)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, sans-serif; }
-        #map { height: 100vh; width: 100%; background: #fff; }
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, sans-serif; background: #f4f4f9; }
+        #map { height: 100vh; width: 100%; z-index: 1; }
         
         .sidebar {
-            position: absolute; top: 10px; right: 10px; bottom: 10px; width: 320px;
+            position: absolute; top: 15px; right: 15px; width: 300px;
             background: rgba(255, 255, 255, 0.95); z-index: 2000; padding: 20px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.3); border-radius: 12px;
-            overflow-y: auto; display: flex; flex-direction: column; gap: 15px;
-            backdrop-filter: blur(5px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-radius: 12px;
+            display: flex; flex-direction: column; gap: 12px;
+            max-height: 90vh; overflow-y: auto;
         }
         
-        h2 { font-size: 18px; color: #2c3e50; margin: 0 0 10px 0; border-bottom: 3px solid #3498db; padding-bottom: 5px; }
-        label { font-size: 13px; font-weight: bold; color: #444; margin-bottom: 5px; display: block; }
+        h2 { font-size: 16px; color: #2c3e50; margin: 0 0 10px 0; border-bottom: 2px solid #3498db; padding-bottom: 5px; text-align: center;}
         
         .file-upload {
-            border: 2px dashed #3498db; padding: 20px; text-align: center;
-            border-radius: 8px; cursor: pointer; background: #f8fbff; color: #3498db;
-            transition: 0.3s; font-size: 13px;
+            border: 2px dashed #3498db; padding: 15px; text-align: center;
+            border-radius: 8px; cursor: pointer; background: #f0f8ff; color: #3498db;
+            transition: 0.3s; font-size: 12px; font-weight: bold;
         }
-        .file-upload:hover { background: #e1f0fa; border-color: #2980b9; }
+        .file-upload:hover { background: #e1f0fa; }
         input[type="file"] { display: none; }
         
-        select, input[type="number"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
+        label { font-size: 12px; font-weight: bold; color: #555; }
+        select, input[type="number"] { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
         
         button {
-            width: 100%; padding: 12px; border: none; border-radius: 6px; cursor: pointer;
-            font-weight: bold; color: white; transition: 0.3s; font-size: 14px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            width: 100%; padding: 10px; border: none; border-radius: 5px; cursor: pointer;
+            font-weight: bold; color: white; transition: 0.3s; font-size: 13px; margin-top: 5px;
         }
-        .btn-run { background: linear-gradient(45deg, #27ae60, #2ecc71); }
-        .btn-run:hover { transform: translateY(-1px); box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
-        .btn-export { background-color: #e67e22; display: none; margin-top: 5px;}
+        .btn-run { background: linear-gradient(to left, #2980b9, #3498db); }
+        .btn-run:hover { opacity: 0.9; }
+        .btn-export { background: #e67e22; display: none; }
         
         .loader {
-            border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%;
-            width: 30px; height: 30px; animation: spin 1s linear infinite;
-            margin: 15px auto; display: none;
+            border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%;
+            width: 25px; height: 25px; animation: spin 1s linear infinite;
+            margin: 10px auto; display: none;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
-        #statusMsg { font-size: 12px; text-align: center; color: #666; min-height: 20px; }
-        
-        /* تصميم المفتاح (Legend) ليشبه الصورة */
+        #statusMsg { font-size: 11px; text-align: center; color: #666; min-height: 15px; }
+
+        /* مفتاح الخريطة المتدرج */
         .legend {
             background: rgba(255, 255, 255, 0.9); padding: 10px; border-radius: 8px;
-            box-shadow: 0 0 15px rgba(0,0,0,0.2); position: absolute; bottom: 30px; left: 20px;
-            z-index: 1000; display: none; min-width: 150px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2); position: absolute; bottom: 25px; left: 20px;
+            z-index: 1000; display: none; font-size: 12px; line-height: 1.5;
+            min-width: 120px;
         }
-        .gradient-bar {
-            height: 150px; width: 20px; float: left; margin-right: 10px;
-            border-radius: 10px; border: 1px solid #ccc;
-        }
-        .legend-labels { float: left; height: 150px; display: flex; flex-direction: column; justify-content: space-between; font-size: 12px; font-weight: bold; }
+        .gradient-bar { height: 120px; width: 15px; float: left; margin-right: 8px; border-radius: 10px; border: 1px solid #aaa; }
+        .legend-values { height: 120px; display: flex; flex-direction: column; justify-content: space-between; }
     </style>
 </head>
 <body>
 
 <div class="sidebar">
-    <h2>محاكاة البيانات المناخية</h2>
+    <h2>محاكاة المناخ (ERA5-Land)</h2>
 
-    <div>
-        <label>1. مجال الدراسة (KML):</label>
-        <label for="kmlInput" class="file-upload" id="dropZone">
-            <span id="fileName">اضغط لرفع ملف KML</span>
-        </label>
-        <input type="file" id="kmlInput" accept=".kml">
-    </div>
+    <label>1. مجال الدراسة (KML):</label>
+    <label for="kmlInput" class="file-upload">
+        <span id="fileName">رفع ملف KML</span>
+    </label>
+    <input type="file" id="kmlInput" accept=".kml">
 
-    <div>
-        <label>2. السنة:</label>
-        <input type="number" id="yearInput" min="1950" max="2023" value="2022">
-    </div>
+    <label>2. السنة:</label>
+    <input type="number" id="yearInput" min="1950" max="2023" value="2022">
 
-    <div>
-        <label>3. المتغير:</label>
-        <select id="variableSelect">
-            <option value="rain">التساقطات المطرية (Rainfall)</option>
-            <option value="temp">درجة الحرارة (Temperature)</option>
-        </select>
-    </div>
+    <label>3. نوع البيانات:</label>
+    <select id="variableSelect">
+        <option value="rain">التساقطات المطرية (Precipitation)</option>
+        <option value="temp">درجة الحرارة (Temperature)</option>
+    </select>
 
-    <button class="btn-run" id="analyzeBtn" onclick="runAnalysis()">تشغيل التحليل</button>
+    <button class="btn-run" id="analyzeBtn" onclick="runAnalysis()">تشغيل المعالجة</button>
     
     <div class="loader" id="loader"></div>
     <div id="statusMsg"></div>
@@ -98,7 +89,7 @@
 
 <div id="legend" class="legend">
     <div id="gradientBar" class="gradient-bar"></div>
-    <div id="legendLabels" class="legend-labels"></div>
+    <div class="legend-values" id="legendValues"></div>
 </div>
 
 <div id="map"></div>
@@ -108,14 +99,10 @@
 <script src="https://unpkg.com/@mapbox/togeojson@0.16.0/togeojson.js"></script>
 
 <script>
-    // 1. الخريطة
-    const map = L.map('map', {
-        renderer: L.canvas() // تفعيل وضع الكانفاس للأداء العالي (مهم جداً للنعومة)
-    }).setView([32.0, -6.0], 5);
-    
+    // تهيئة الخريطة (وضع الكانفاس لسرعة العرض)
+    const map = L.map('map', { renderer: L.canvas() }).setView([33.0, -6.0], 6);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-        attribution: 'OpenStreetMap | Open-Meteo',
-        opacity: 0.6 // جعل الخلفية باهتة قليلاً لإبراز الألوان
+        attribution: '© OpenStreetMap, © ERA5-Land'
     }).addTo(map);
 
     let userPolygon = null;
@@ -123,7 +110,7 @@
     let interpolatedGrid = null;
     let resultLayer = null;
 
-    // 2. استيراد KML
+    // استيراد ملف KML
     document.getElementById('kmlInput').addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (!file) return;
@@ -137,22 +124,22 @@
                 const converted = toGeoJSON.kml(kml);
                 const polygonFeature = converted.features.find(f => f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon');
                 
-                if (!polygonFeature) { alert("الملف لا يحتوي على مضلع!"); return; }
+                if (!polygonFeature) { alert("لا يوجد مضلع في الملف!"); return; }
                 userPolygon = polygonFeature;
                 
                 if (userGeoJsonLayer) map.removeLayer(userGeoJsonLayer);
                 userGeoJsonLayer = L.geoJSON(userPolygon, {
-                    style: { color: '#333', fillOpacity: 0, weight: 2, dashArray: '5, 5' }
+                    style: { color: 'black', fillOpacity: 0, weight: 2, dashArray: '5,5' }
                 }).addTo(map);
                 map.fitBounds(userGeoJsonLayer.getBounds());
-            } catch (err) { alert("خطأ في قراءة الملف"); }
+            } catch (err) { alert("ملف KML غير صالح"); }
         };
         reader.readAsText(file);
     });
 
-    // 3. التحليل الرئيسي
+    // الدالة الرئيسية
     async function runAnalysis() {
-        if (!userPolygon) { alert("المرجو رفع ملف KML أولاً"); return; }
+        if (!userPolygon) { alert("يرجى رفع ملف KML"); return; }
         
         const btn = document.getElementById('analyzeBtn');
         const loader = document.getElementById('loader');
@@ -160,7 +147,7 @@
         const year = document.getElementById('yearInput').value;
         const variable = document.getElementById('variableSelect').value;
 
-        // إعادة الضبط
+        // تنظيف
         if (resultLayer) map.removeLayer(resultLayer);
         document.getElementById('exportBtn').style.display = 'none';
         document.getElementById('legend').style.display = 'none';
@@ -168,131 +155,117 @@
         btn.disabled = true; loader.style.display = 'block';
 
         try {
-            status.innerText = "جاري تحضير نقاط العينة...";
+            status.innerText = "جاري إنشاء شبكة النقاط...";
             
-            // للحصول على مظهر ناعم مثل الصورة، نحتاج لخطوتين:
-            // 1. عينة بيانات قليلة (لتفادي حظر API)
-            // 2. استقراء (Interpolation) عالي الدقة جداً (خلايا صغيرة جداً)
-
+            // حساب المسافة المثالية بين النقاط لتفادي الثقل
+            const area = turf.area(userPolygon) / 1000000; 
+            // للمجالات الكبيرة 25كم، للصغيرة 10كم
+            let distance = area > 5000 ? 25 : 10; 
+            
             const bbox = turf.bbox(userPolygon);
-            const area = turf.area(userPolygon) / 1000000; // km2
+            const grid = turf.pointGrid(bbox, distance, {units: 'kilometers', mask: userPolygon});
             
-            // مسافة النقاط لسحب البيانات (مسافة كبيرة لتقليل الطلبات)
-            let sampleDistance = area > 10000 ? 50 : (area > 2000 ? 25 : 10); 
-            const sampleGrid = turf.pointGrid(bbox, sampleDistance, {units: 'kilometers', mask: userPolygon});
+            // تحديد سقف للنقاط (API Limitation)
+            let points = grid.features;
+            if (points.length > 60) points = points.slice(0, 60); // عينة ممثلة
+
+            status.innerText = `تحميل بيانات ERA5-Land لـ ${points.length} نقطة...`;
             
-            // التأكد من عدم تجاوز حد API (مثلاً 80 نقطة)
-            let featuresToFetch = sampleGrid.features;
-            if (featuresToFetch.length > 80) featuresToFetch = featuresToFetch.slice(0, 80);
-
-            if (featuresToFetch.length === 0) throw new Error("المجال صغير جداً أو خارج النطاق");
-
-            status.innerText = `جلب بيانات ${featuresToFetch.length} نقطة من الأرشيف...`;
+            // جلب البيانات
+            const processedPoints = await fetchERA5Data(points, year, variable);
             
-            // جلب البيانات مع معالجة الأخطاء (حل مشكلة NaN)
-            const pointsWithData = await fetchHistoricalData(featuresToFetch, year, variable);
+            // التحقق من أن لدينا بيانات صالحة
+            if (processedPoints.features.length === 0) {
+                throw new Error("لم يتم العثور على بيانات صالحة للمنطقة/السنة المحددة.");
+            }
 
-            if (pointsWithData.features.length === 0) throw new Error("فشل جلب البيانات من المصدر");
+            status.innerText = "جاري الاستقراء المكاني (Interpolation)...";
 
-            status.innerText = "جاري إنشاء الخريطة عالية الدقة (Raster-like)...";
-
-            // *** السر هنا: الاستقراء بدقة عالية جداً ***
-            // نصغر حجم الخلية جداً لتبدو كبكسلات الصورة
-            // كلما صغر الرقم زادت الدقة والوقت. 2km دقة جيدة للعرض
-            const interpolationCellSize = 2; 
-            
-            interpolatedGrid = turf.interpolate(pointsWithData, interpolationCellSize, {
-                gridType: 'hex', // الهيكس أفضل بصرياً للتدرج
+            // الاستقراء بدقة عالية للعرض (2km)
+            interpolatedGrid = turf.interpolate(processedPoints, 2, {
+                gridType: 'hex',
                 property: 'value',
                 units: 'kilometers',
-                weight: 3 // زيادة الوزن لنعومة أكثر
+                weight: 2
             });
 
-            // قص النتيجة بدقة
-            const clippedGrid = turf.featureCollection(
+            // قص النتيجة على حدود المضلع
+            const clipped = turf.featureCollection(
                 interpolatedGrid.features.filter(f => turf.booleanIntersects(f, userPolygon))
             );
-            interpolatedGrid = clippedGrid; // تحديث للمتغير العام
+            interpolatedGrid = clipped;
 
-            drawSmoothMap(interpolatedGrid, variable);
-            
-            status.innerText = "تمت العملية بنجاح ✅";
+            drawMap(interpolatedGrid, variable);
+            status.innerText = "تم بنجاح.";
             document.getElementById('exportBtn').style.display = 'block';
 
         } catch (err) {
             console.error(err);
             status.innerText = "خطأ: " + err.message;
-            status.style.color = "red";
         } finally {
             btn.disabled = false; loader.style.display = 'none';
         }
     }
 
-    // 4. جلب البيانات (مع تصحيح NaN)
-    async function fetchHistoricalData(features, year, variable) {
-        const apiVar = variable === 'temp' ? 'temperature_2m_mean' : 'precipitation_sum';
+    // دالة جلب البيانات (الأكثر أهمية - تم إصلاح NaN هنا)
+    async function fetchERA5Data(features, year, variable) {
+        // نستخدم models=era5_land للحصول على أفضل دقة
+        const apiVar = variable === 'rain' ? 'precipitation_sum' : 'temperature_2m_mean';
         
         const promises = features.map(async (point) => {
             const [lng, lat] = point.geometry.coordinates;
-            // استخدام رابط الأرشيف
-            const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lng}&start_date=${year}-01-01&end_date=${year}-12-31&daily=${apiVar}&timezone=auto`;
+            const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lng}&start_date=${year}-01-01&end_date=${year}-12-31&daily=${apiVar}&timezone=auto&models=era5_land`;
             
             try {
                 const res = await fetch(url);
-                if (!res.ok) return null; // فشل الاتصال
                 const data = await res.json();
                 
                 if (!data.daily || !data.daily[apiVar]) return null;
 
-                const values = data.daily[apiVar];
+                // *** الفلتر السحري لإصلاح NaN ***
+                // استبعاد أي قيمة غير رقمية (null, undefined, NaN)
+                const values = data.daily[apiVar].filter(v => typeof v === 'number' && !isNaN(v));
                 
-                // ** تصحيح NaN: تصفية القيم الفارغة **
-                const validValues = values.filter(v => v !== null && v !== undefined && !isNaN(v));
-                
-                if (validValues.length === 0) return null;
+                if (values.length === 0) return null; // تخطي هذه النقطة إذا كانت البيانات فارغة
 
-                let finalValue = 0;
-                if (variable === 'temp') {
-                    // متوسط
-                    finalValue = validValues.reduce((a, b) => a + b, 0) / validValues.length;
+                let resultVal = 0;
+                if (variable === 'rain') {
+                    // للأمطار: المجموع
+                    resultVal = values.reduce((a, b) => a + b, 0);
                 } else {
-                    // مجموع
-                    finalValue = validValues.reduce((a, b) => a + b, 0);
+                    // للحرارة: المتوسط
+                    resultVal = values.reduce((a, b) => a + b, 0) / values.length;
                 }
 
-                // التأكد من أن القيمة رقم حقيقي
-                if (isNaN(finalValue)) return null;
+                // حماية نهائية
+                if (isNaN(resultVal) || !isFinite(resultVal)) return null;
 
-                point.properties.value = finalValue;
+                point.properties.value = resultVal;
                 return point;
             } catch (e) { return null; }
         });
 
         const results = await Promise.all(promises);
-        // إرجاع فقط النقاط التي نجحت
+        // إرجاع النقاط الصالحة فقط
         return turf.featureCollection(results.filter(p => p !== null));
     }
 
-    // 5. الرسم (تلوين متقدم يشبه الصورة)
-    function drawSmoothMap(grid, variable) {
-        // حساب Min/Max
-        let min = Infinity, max = -Infinity;
-        turf.featureEach(grid, (f) => {
-            const v = f.properties.value;
-            if (v < min) min = v;
-            if (v > max) max = v;
-        });
-
-        // حماية ضد القيم الواحدة
-        if (min === max) { min -= 1; max += 1; }
+    // دالة الرسم (مطابقة للألوان المطلوبة)
+    function drawMap(grid, variable) {
+        // حساب المين والماكس الصحيحين
+        const values = grid.features.map(f => f.properties.value);
+        let min = Math.min(...values);
+        let max = Math.max(...values);
+        
+        // منع التساوي لتجنب القسمة على صفر
+        if (min === max) { max = min + 1; }
 
         resultLayer = L.geoJSON(grid, {
-            style: function(feature) {
+            style: function(f) {
                 return {
-                    fillColor: getAdvancedColor(feature.properties.value, min, max, variable),
-                    weight: 0, // إزالة الحدود تماماً لدمج الخلايا
-                    opacity: 0,
-                    fillOpacity: 0.85 // شفافية طفيفة تسمح برؤية التضاريس
+                    fillColor: getRainbowColor(f.properties.value, min, max, variable),
+                    weight: 0, 
+                    fillOpacity: 0.85
                 };
             }
         }).addTo(map);
@@ -300,66 +273,62 @@
         updateLegend(min, max, variable);
     }
 
-    // دالة الألوان المتقدمة (مطابقة للصورة)
-    function getAdvancedColor(val, min, max, type) {
-        // تحويل القيمة لنسبة 0-1
-        let t = (val - min) / (max - min);
-        if (t < 0) t = 0; if (t > 1) t = 1;
-
+    // دالة ألوان الطيف (Rainbow Spectrum)
+    function getRainbowColor(val, min, max, type) {
+        const t = (val - min) / (max - min); // نسبة 0 إلى 1
+        
         if (type === 'rain') {
-            // تدرج الأمطار: بني -> أصفر -> أخضر -> أزرق -> بنفسجي (مثل الصورة اليسرى)
-            // نقاط التوقف: 0.0 (بني), 0.25 (أصفر), 0.5 (أخضر), 0.75 (أزرق), 1.0 (بنفسجي/أبيض)
-            if (t < 0.2) return interpolateColor('#8B4513', '#FFD700', t / 0.2); // بني إلى أصفر ذهبي
-            if (t < 0.4) return interpolateColor('#FFD700', '#32CD32', (t - 0.2) / 0.2); // أصفر إلى أخضر
-            if (t < 0.7) return interpolateColor('#32CD32', '#0000FF', (t - 0.4) / 0.3); // أخضر إلى أزرق
-            return interpolateColor('#0000FF', '#FF00FF', (t - 0.7) / 0.3); // أزرق إلى ماجنتا
+            // تدرج الأمطار (مثل الصورة اليسرى): أحمر (جاف) -> أصفر -> أخضر -> أزرق -> بنفسجي (ممطر)
+            // هذا التدرج يسمى "Spectral" معكوس أو مشابه لـ Jet
+            if (t < 0.2) return interpolateColor('#D73027', '#FC8D59', t/0.2);
+            if (t < 0.4) return interpolateColor('#FC8D59', '#FEE08B', (t-0.2)/0.2);
+            if (t < 0.6) return interpolateColor('#FEE08B', '#D9EF8B', (t-0.4)/0.2);
+            if (t < 0.8) return interpolateColor('#D9EF8B', '#91CF60', (t-0.6)/0.2);
+            return interpolateColor('#91CF60', '#762a83', (t-0.8)/0.2); 
         } else {
-            // تدرج الحرارة: أزرق غامق -> أزرق فاتح -> أصفر -> أحمر (مثل الصورة اليمنى)
-            if (t < 0.3) return interpolateColor('#00008B', '#00FFFF', t / 0.3); // أزرق داكن لسماوي
-            if (t < 0.6) return interpolateColor('#00FFFF', '#FFFF00', (t - 0.3) / 0.3); // سماوي لأصفر
-            return interpolateColor('#FFFF00', '#FF0000', (t - 0.6) / 0.4); // أصفر لأحمر
+            // تدرج الحرارة (مثل الصورة اليمنى): أزرق بارد -> سماوي -> أصفر -> أحمر حار
+            if (t < 0.33) return interpolateColor('#2c7bb6', '#abd9e9', t/0.33);
+            if (t < 0.66) return interpolateColor('#abd9e9', '#fdae61', (t-0.33)/0.33);
+            return interpolateColor('#fdae61', '#d7191c', (t-0.66)/0.34);
         }
     }
 
-    // دالة دمج لونين (لنعومة التدرج)
+    // دالة خلط الألوان
     function interpolateColor(c1, c2, factor) {
-        // تحويل Hex إلى RGB وحساب الوسط
-        const r1 = parseInt(c1.substring(1,3),16), g1 = parseInt(c1.substring(3,5),16), b1 = parseInt(c1.substring(5,7),16);
-        const r2 = parseInt(c2.substring(1,3),16), g2 = parseInt(c2.substring(3,5),16), b2 = parseInt(c2.substring(5,7),16);
+        const hex = (x) => parseInt(x, 16);
+        let r1 = hex(c1.substr(1,2)), g1 = hex(c1.substr(3,2)), b1 = hex(c1.substr(5,2));
+        let r2 = hex(c2.substr(1,2)), g2 = hex(c2.substr(3,2)), b2 = hex(c2.substr(5,2));
         
-        const r = Math.round(r1 + factor * (r2 - r1));
-        const g = Math.round(g1 + factor * (g2 - g1));
-        const b = Math.round(b1 + factor * (b2 - b1));
-        
+        let r = Math.round(r1 + factor * (r2 - r1));
+        let g = Math.round(g1 + factor * (g2 - g1));
+        let b = Math.round(b1 + factor * (b2 - b1));
         return `rgb(${r},${g},${b})`;
     }
 
-    // تحديث المفتاح الجانبي (CSS Gradient)
+    // تحديث المفتاح
     function updateLegend(min, max, variable) {
         const legend = document.getElementById('legend');
-        const bar = document.getElementById('gradientBar');
-        const labels = document.getElementById('legendLabels');
-        
         legend.style.display = 'block';
         
-        // رسم شريط التدرج بال CSS
-        let gradientCSS = '';
-        if (variable === 'rain') {
-            gradientCSS = 'linear-gradient(to top, #8B4513, #FFD700, #32CD32, #0000FF, #FF00FF)';
-        } else {
-            gradientCSS = 'linear-gradient(to top, #00008B, #00FFFF, #FFFF00, #FF0000)';
-        }
-        bar.style.background = gradientCSS;
+        const bar = document.getElementById('gradientBar');
+        const labels = document.getElementById('legendValues');
+        const unit = variable === 'rain' ? 'mm' : '°C';
 
-        // وضع الأرقام
+        // تعيين التدرج اللوني CSS
+        if (variable === 'rain') {
+            bar.style.background = 'linear-gradient(to top, #D73027, #FC8D59, #FEE08B, #D9EF8B, #91CF60, #762a83)';
+        } else {
+            bar.style.background = 'linear-gradient(to top, #2c7bb6, #abd9e9, #fdae61, #d7191c)';
+        }
+
         labels.innerHTML = `
-            <span>${max.toFixed(1)} ${variable==='rain'?'mm':'°C'}</span>
+            <span>${max.toFixed(1)} ${unit}</span>
             <span>${((max+min)/2).toFixed(1)}</span>
-            <span>${min.toFixed(1)}</span>
+            <span>${min.toFixed(1)} ${unit}</span>
         `;
     }
 
-    // تصدير ASCII Grid
+    // تصدير النتيجة
     function exportToAscii() {
         if (!interpolatedGrid) return;
         const bbox = turf.bbox(userPolygon);
@@ -369,6 +338,7 @@
         
         let content = `NCOLS ${ncols}\nNROWS ${nrows}\nXLLCORNER ${bbox[0]}\nYLLCORNER ${bbox[1]}\nCELLSIZE ${resolution}\nNODATA_VALUE -9999\n`;
         
+        // تحضير مراكز البيانات للبحث السريع
         const centers = turf.featureCollection(interpolatedGrid.features.map(f => turf.center(f, {properties: f.properties})));
         
         for (let r = 0; r < nrows; r++) {
@@ -377,9 +347,12 @@
             for (let c = 0; c < ncols; c++) {
                 const x = bbox[0] + (c * resolution) + (resolution/2);
                 if (turf.booleanPointInPolygon([x,y], userPolygon)) {
+                    // البحث عن أقرب قيمة
                     const nearest = turf.nearestPoint([x,y], centers);
                     rowVals.push(nearest.properties.value.toFixed(2));
-                } else rowVals.push("-9999");
+                } else {
+                    rowVals.push("-9999");
+                }
             }
             content += rowVals.join(" ") + "\n";
         }
@@ -387,7 +360,7 @@
         const blob = new Blob([content], {type: "text/plain"});
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = "result.asc";
+        a.download = `raster_data.asc`;
         a.click();
     }
 </script>
