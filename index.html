@@ -2,53 +2,58 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>منصة التحليل المناخي الاحترافي</title>
+    <title>منصة التحليل المناخي (رسم + KML)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    
     <style>
         body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, sans-serif; background: #f8f9fa; }
         #map { height: 100vh; width: 100%; z-index: 1; }
         
         .sidebar {
-            position: absolute; top: 20px; right: 20px; width: 320px;
+            position: absolute; top: 20px; right: 20px; width: 340px;
             background: rgba(255, 255, 255, 0.98); z-index: 2000; padding: 25px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.15); border-radius: 15px;
             display: flex; flex-direction: column; gap: 15px;
             backdrop-filter: blur(10px);
+            max-height: 90vh; overflow-y: auto;
         }
         
-        h2 { font-size: 18px; color: #2c3e50; margin: 0 0 15px 0; border-bottom: 3px solid #3498db; padding-bottom: 10px; font-weight: 800;}
+        h2 { font-size: 18px; color: #2c3e50; margin: 0 0 10px 0; border-bottom: 3px solid #3498db; padding-bottom: 10px; font-weight: 800;}
         
+        .input-group { background: #fdfdfd; padding: 10px; border: 1px solid #eee; border-radius: 8px; }
+        .input-title { font-size: 13px; font-weight: 700; color: #34495e; margin-bottom: 8px; display: block; }
+
+        /* أزرار التبديل */
+        .mode-switch { display: flex; gap: 10px; margin-bottom: 10px; }
+        .mode-btn { flex: 1; padding: 8px; border: 1px solid #ccc; background: #f9f9f9; cursor: pointer; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .mode-btn.active { background: #3498db; color: white; border-color: #2980b9; }
+
         .file-upload {
-            border: 2px dashed #bdc3c7; padding: 20px; text-align: center;
-            border-radius: 8px; cursor: pointer; background: #fdfdfd; color: #7f8c8d;
-            transition: 0.3s; font-size: 13px;
+            border: 2px dashed #bdc3c7; padding: 15px; text-align: center;
+            border-radius: 8px; cursor: pointer; background: #fff; color: #7f8c8d;
+            transition: 0.3s; font-size: 13px; display: block;
         }
         .file-upload:hover { border-color: #3498db; color: #3498db; background: #ecf0f1; }
         
-        label { font-size: 13px; font-weight: 700; color: #34495e; margin-top: 5px; }
-        input, select { width: 100%; padding: 10px; border: 1px solid #dfe6e9; border-radius: 6px; box-sizing: border-box; outline: none; transition: 0.3s;}
-        input:focus, select:focus { border-color: #3498db; }
+        input[type="number"], select { width: 100%; padding: 10px; border: 1px solid #dfe6e9; border-radius: 6px; box-sizing: border-box; outline: none; }
         
-        button {
+        button.action-btn {
             width: 100%; padding: 12px; border: none; border-radius: 6px; cursor: pointer;
             font-weight: bold; color: white; transition: 0.3s; font-size: 14px; margin-top: 10px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
         .btn-run { background: linear-gradient(135deg, #3498db, #2980b9); }
-        .btn-run:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(52, 152, 219, 0.3); }
+        .btn-run:hover { transform: translateY(-2px); }
         .btn-export { background: linear-gradient(135deg, #e67e22, #d35400); display: none; }
         
-        .loader {
-            width: 100%; height: 4px; background: #ecf0f1; margin-top: 15px; border-radius: 2px; overflow: hidden; display: none;
-        }
-        .loader .bar {
-            width: 0%; height: 100%; background: #2ecc71; transition: width 0.3s;
-        }
+        .loader { width: 100%; height: 4px; background: #ecf0f1; margin-top: 15px; border-radius: 2px; overflow: hidden; display: none; }
+        .loader .bar { width: 0%; height: 100%; background: #2ecc71; transition: width 0.3s; }
         
         #statusMsg { font-size: 12px; text-align: center; color: #7f8c8d; margin-top: 5px; min-height: 18px; }
         
-        /* المفتاح الجانبي */
         .legend {
             background: white; padding: 15px; border-radius: 8px;
             box-shadow: 0 5px 15px rgba(0,0,0,0.1); position: absolute; bottom: 30px; left: 30px;
@@ -63,27 +68,43 @@
 <div class="sidebar">
     <h2>محاكاة المناخ (High Res)</h2>
 
-    <label>1. مجال الدراسة (KML فقط):</label>
-    <label for="kmlInput" class="file-upload">
-        <span id="fileName">اضغط لرفع الملف</span>
-        <input type="file" id="kmlInput" accept=".kml" style="display:none">
-    </label>
+    <div class="input-group">
+        <span class="input-title">1. تحديد مجال الدراسة:</span>
+        <div class="mode-switch">
+            <button class="mode-btn active" onclick="setMode('draw')">رسم يدوي</button>
+            <button class="mode-btn" onclick="setMode('kml')">رفع KML</button>
+        </div>
 
-    <label>2. السنة (2024 متوفرة):</label>
-    <input type="number" id="yearInput" min="1950" max="2024" value="2023">
+        <div id="drawSection">
+            <p style="font-size:12px; color:#666; margin:5px 0;">استخدم أدوات الرسم (المربع أو المضلع) الموجودة على يسار الخريطة لتحديد المنطقة.</p>
+        </div>
 
-    <label>3. المؤشر المناخي:</label>
-    <select id="variableSelect">
-        <option value="rain">التساقطات المطرية السنوية (mm)</option>
-        <option value="temp">متوسط الحرارة السنوي (°C)</option>
-    </select>
+        <div id="kmlSection" style="display:none;">
+            <label for="kmlInput" class="file-upload">
+                <span id="fileName">اضغط لرفع ملف KML</span>
+                <input type="file" id="kmlInput" accept=".kml" style="display:none">
+            </label>
+        </div>
+    </div>
 
-    <button class="btn-run" id="analyzeBtn" onclick="startAnalysis()">تشغيل المعالجة الدقيقة</button>
+    <div class="input-group" style="margin-top:10px;">
+        <span class="input-title">2. الإعدادات:</span>
+        <label style="font-size:12px;">السنة:</label>
+        <input type="number" id="yearInput" min="1950" max="2024" value="2023" style="margin-bottom:5px;">
+        
+        <label style="font-size:12px;">المتغير:</label>
+        <select id="variableSelect">
+            <option value="rain">التساقطات المطرية (mm)</option>
+            <option value="temp">درجة الحرارة (°C)</option>
+        </select>
+    </div>
+
+    <button class="action-btn btn-run" id="analyzeBtn" onclick="startAnalysis()">تشغيل المعالجة</button>
     
     <div class="loader" id="loader"><div class="bar" id="progressBar"></div></div>
     <div id="statusMsg"></div>
 
-    <button class="btn-export" id="exportBtn" onclick="downloadImage()">تحميل الخريطة (Image)</button>
+    <button class="action-btn btn-export" id="exportBtn" onclick="alert('استخدم لقطة الشاشة (Screenshot) للحصول على أفضل دقة.')">تصدير النتيجة</button>
 </div>
 
 <div id="legend" class="legend">
@@ -94,23 +115,63 @@
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
 <script src="https://unpkg.com/@mapbox/togeojson@0.16.0/togeojson.js"></script>
-<script src="https://unpkg.com/simpleheat@0.4.0/simpleheat.js"></script>
 
 <script>
     // 1. إعداد الخريطة
-    const map = L.map('map', { zoomControl: false }).setView([32, -6], 6);
-    L.control.zoom({ position: 'topleft' }).addTo(map);
+    const map = L.map('map').setView([32, -6], 6);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
         attribution: 'OpenStreetMap | ERA5-Land'
     }).addTo(map);
 
+    // طبقة لتخزين الرسم
+    const drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+
+    // إعداد أدوات الرسم
+    const drawControl = new L.Control.Draw({
+        draw: {
+            polyline: false, marker: false, circlemarker: false, circle: false,
+            polygon: { allowIntersection: false, showArea: true },
+            rectangle: { showArea: true }
+        },
+        edit: { featureGroup: drawnItems }
+    });
+    map.addControl(drawControl);
+
+    // متغيرات عامة
     let userPolygon = null;
     let canvasLayer = null;
-    let globalPoints = []; // لتخزين البيانات
 
-    // 2. معالجة KML
+    // 2. التحكم في الواجهة (رسم vs KML)
+    function setMode(mode) {
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        event.target.classList.add('active');
+        
+        if(mode === 'draw') {
+            document.getElementById('drawSection').style.display = 'block';
+            document.getElementById('kmlSection').style.display = 'none';
+        } else {
+            document.getElementById('drawSection').style.display = 'none';
+            document.getElementById('kmlSection').style.display = 'block';
+        }
+    }
+
+    // 3. معالجة الرسم اليدوي
+    map.on(L.Draw.Event.CREATED, function (e) {
+        drawnItems.clearLayers(); // مسح أي رسم سابق
+        const layer = e.layer;
+        drawnItems.addLayer(layer);
+        
+        // تحويل الرسم إلى GeoJSON ليستخدمه المحرك
+        userPolygon = layer.toGeoJSON();
+        document.getElementById('statusMsg').innerText = "تم تحديد المجال بالرسم.";
+        document.getElementById('statusMsg').style.color = "green";
+    });
+
+    // 4. معالجة ملف KML
     document.getElementById('kmlInput').addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (!file) return;
@@ -125,22 +186,26 @@
                 const poly = converted.features.find(f => f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon');
                 
                 if (!poly) { alert("الملف لا يحتوي على مضلع"); return; }
+                
                 userPolygon = poly;
                 
-                // عرض الحدود فقط للمساعدة
-                if (canvasLayer) map.removeLayer(canvasLayer);
-                const tempLayer = L.geoJSON(userPolygon, { style: { color: '#333', fillOpacity: 0, weight: 2, dashArray: '5,5'} }).addTo(map);
-                map.fitBounds(tempLayer.getBounds());
-                setTimeout(() => map.removeLayer(tempLayer), 2000); // إزالة الحدود لتبقى الخريطة نظيفة
+                // عرض الحدود
+                drawnItems.clearLayers();
+                const layer = L.geoJSON(userPolygon, { style: { color: '#333', dashArray: '5,5' } });
+                drawnItems.addLayer(layer);
+                map.fitBounds(layer.getBounds());
+                
+                document.getElementById('statusMsg').innerText = "تم استيراد KML بنجاح.";
+                document.getElementById('statusMsg').style.color = "green";
 
             } catch (err) { alert("خطأ في ملف KML"); }
         };
         reader.readAsText(file);
     });
 
-    // 3. المحرك الرئيسي
+    // 5. المحرك الرئيسي
     async function startAnalysis() {
-        if (!userPolygon) { alert("المرجو رفع KML أولاً"); return; }
+        if (!userPolygon) { alert("المرجو رسم مجال الدراسة أو رفع KML أولاً"); return; }
         
         const ui = {
             btn: document.getElementById('analyzeBtn'),
@@ -154,48 +219,37 @@
         const year = document.getElementById('yearInput').value;
         const variable = document.getElementById('variableSelect').value;
         
-        // إعادة تهيئة
         if (canvasLayer) map.removeLayer(canvasLayer);
         ui.export.style.display = 'none';
         ui.legend.style.display = 'none';
         ui.btn.disabled = true; ui.loader.style.display = 'block'; ui.bar.style.width = '10%';
 
         try {
-            // أ. إنشاء شبكة نقاط ذكية (ليست للعرض بل لجلب البيانات)
             ui.status.innerText = "جاري إنشاء نقاط العينة...";
             const bbox = turf.bbox(userPolygon);
-            const area = turf.area(userPolygon) / 1000000; // km2
+            const area = turf.area(userPolygon) / 1000000;
             
-            // معادلة ذكية: كلما كبرت المنطقة قلت كثافة النقاط للحفاظ على الأداء
-            // الهدف: الحصول على حوالي 50-80 نقطة موزعة جيداً لتمثيل المنطقة
-            let spacing = Math.sqrt(area) / 8; 
-            if (spacing < 2) spacing = 2; // لا تقل المسافة عن 2 كم
-            if (spacing > 50) spacing = 50; // لا تزيد عن 50 كم
+            // ضبط كثافة النقاط
+            let spacing = Math.sqrt(area) / 12; 
+            if (spacing < 1) spacing = 1;
+            if (spacing > 40) spacing = 40;
             
             const grid = turf.pointGrid(bbox, spacing, {units: 'kilometers', mask: userPolygon});
             let points = grid.features;
             
-            // حماية ضد التحميل الزائد
-            if (points.length > 100) points = points.filter((_, i) => i % 2 === 0); 
-            if (points.length < 5) {
-                // إذا كانت المنطقة صغيرة جداً، نأخذ المركز ونقاط حوله
-                points = [turf.centroid(userPolygon)];
-            }
+            if (points.length > 150) points = points.filter((_, i) => i % 2 === 0);
+            if (points.length < 3) points = [turf.centroid(userPolygon)];
 
             ui.bar.style.width = '30%';
             ui.status.innerText = `جلب بيانات ${points.length} موقع (ERA5-Land)...`;
 
-            // ب. جلب البيانات (مع دعم 2024 عبر Archive API)
             const dataPoints = await fetchValidData(points, year, variable);
             
-            if (dataPoints.length === 0) throw new Error("لم يتم العثور على بيانات. (جرب سنة أقدم قليلاً)");
+            if (dataPoints.length === 0) throw new Error("لم يتم العثور على بيانات صالحة لهذه المنطقة/السنة.");
             
-            globalPoints = dataPoints; // حفظ للرسم
-
             ui.bar.style.width = '70%';
-            ui.status.innerText = "جاري الرسم بدقة عالية (Canvas Rendering)...";
+            ui.status.innerText = "جاري الرسم بدقة عالية...";
 
-            // ج. الرسم (السر في هذه الخطوة)
             drawSmoothCanvas(dataPoints, userPolygon, variable);
 
             ui.bar.style.width = '100%';
@@ -211,54 +265,47 @@
         }
     }
 
-    // 4. جلب البيانات (مع معالجة الأخطاء الذكية)
     async function fetchValidData(points, year, variable) {
         const apiVar = variable === 'rain' ? 'precipitation_sum' : 'temperature_2m_mean';
         const validPoints = [];
+        
+        // تقسيم الطلبات لتجنب الضغط
+        const batchSize = 10;
+        for (let i = 0; i < points.length; i += batchSize) {
+            const batch = points.slice(i, i + batchSize);
+            const promises = batch.map(async (p) => {
+                const [lng, lat] = p.geometry.coordinates;
+                const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lng}&start_date=${year}-01-01&end_date=${year}-12-31&daily=${apiVar}&timezone=auto`;
+                try {
+                    const res = await fetch(url);
+                    const data = await res.json();
+                    if (!data.daily || !data.daily[apiVar]) return;
+                    
+                    const values = data.daily[apiVar].filter(v => typeof v === 'number' && !isNaN(v));
+                    if (values.length === 0) return;
 
-        // نستخدم Promise.allSettled لعدم توقف العملية عند فشل نقطة واحدة
-        const requests = points.map(async (p) => {
-            const [lng, lat] = p.geometry.coordinates;
-            // API الأرشيف يدعم حتى أيام قليلة مضت
-            const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lng}&start_date=${year}-01-01&end_date=${year}-12-31&daily=${apiVar}&timezone=auto`;
-            
-            const res = await fetch(url);
-            const data = await res.json();
-            
-            if (!data.daily || !data.daily[apiVar]) return;
-            
-            // تنظيف البيانات (إزالة null/NaN)
-            const values = data.daily[apiVar].filter(v => v !== null && !isNaN(v));
-            if (values.length === 0) return;
+                    let val = 0;
+                    if (variable === 'rain') val = values.reduce((a,b)=>a+b, 0);
+                    else val = values.reduce((a,b)=>a+b, 0) / values.length;
 
-            let val = 0;
-            if (variable === 'rain') val = values.reduce((a,b)=>a+b, 0); // مجموع للأمطار
-            else val = values.reduce((a,b)=>a+b, 0) / values.length; // متوسط للحرارة
-
-            validPoints.push({
-                lat: lat,
-                lng: lng,
-                val: val
+                    validPoints.push({ lat: lat, lng: lng, val: val });
+                } catch (e) {}
             });
-        });
-
-        await Promise.all(requests);
+            await Promise.all(promises);
+        }
         return validPoints;
     }
 
-    // 5. الرسم المتقدم (Canvas Interpolation + Masking)
     function drawSmoothCanvas(points, polygon, variable) {
-        // حساب Min/Max
         const vals = points.map(p => p.val);
-        const min = Math.min(...vals);
-        const max = Math.max(...vals);
+        let min = Math.min(...vals);
+        let max = Math.max(...vals);
+        if(min === max) max += 0.1;
 
-        // إعداد طبقة مخصصة
         L.CanvasLayer = L.Layer.extend({
             onAdd: function(map) {
                 this._map = map;
                 this._canvas = L.DomUtil.create('canvas', 'leaflet-zoom-hide');
-                this._canvas.style.pointerEvents = 'none'; // السماح بالنقر عبرها
                 map.getPanes().overlayPane.appendChild(this._canvas);
                 map.on('moveend', this._update, this);
                 this._update();
@@ -269,66 +316,46 @@
             },
             _update: function() {
                 const map = this._map;
-                const canvas = this._canvas;
-                const bounds = map.getBounds();
+                const ctx = this._canvas.getContext('2d');
                 const size = map.getSize();
+                const bounds = map.getBounds();
 
-                // ضبط حجم الكانفاس
-                canvas.width = size.x;
-                canvas.height = size.y;
-                
-                const topLeft = map.containerPointToLayerPoint([0, 0]);
-                L.DomUtil.setPosition(canvas, topLeft);
+                this._canvas.width = size.x;
+                this._canvas.height = size.y;
+                L.DomUtil.setPosition(this._canvas, map.containerPointToLayerPoint([0, 0]));
 
-                const ctx = canvas.getContext('2d');
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.clearRect(0, 0, size.x, size.y);
 
-                // 1. رسم المضلع كـ Mask (قناع)
-                // هذا يضمن أن الرسم يتم فقط داخل الحدود
+                // 1. تطبيق القناع (Clipping Mask)
                 ctx.beginPath();
-                const polyCoords = polygon.geometry.coordinates; // دعم Polygon و MultiPolygon يحتاج منطق إضافي بسيط
-                
-                // دالة مساعدة لرسم المسار
-                function drawPath(coords) {
-                    const points = coords.map(c => map.latLngToContainerPoint([c[1], c[0]]));
-                    if(points.length === 0) return;
-                    ctx.moveTo(points[0].x, points[0].y);
-                    points.forEach(p => ctx.lineTo(p.x, p.y));
+                const drawRing = (coords) => {
+                    const pts = coords.map(c => map.latLngToContainerPoint([c[1], c[0]]));
+                    if(pts.length < 2) return;
+                    ctx.moveTo(pts[0].x, pts[0].y);
+                    pts.forEach(p => ctx.lineTo(p.x, p.y));
                     ctx.closePath();
-                }
+                };
 
-                if (polygon.geometry.type === 'MultiPolygon') {
-                    polyCoords.forEach(poly => poly.forEach(ring => drawPath(ring)));
-                } else {
-                    polyCoords.forEach(ring => drawPath(ring));
-                }
+                const geom = polygon.geometry;
+                if (geom.type === 'MultiPolygon') geom.coordinates.forEach(poly => poly.forEach(drawRing));
+                else geom.coordinates.forEach(drawRing);
                 
-                ctx.clip(); // **هنا السحر: القص على حدود المضلع**
+                ctx.clip(); // قص الرسم على الحدود
 
-                // 2. رسم الاستقراء (IDW Interpolation) على الشاشة
-                // بدلاً من حساب كل بكسل (بطيء)، نرسم دوائر شعاعية كبيرة متداخلة
-                // أو نستخدم دالة IDW بسيطة
-                
-                // الطريقة الأسرع للويب للحصول على شكل ناعم:
-                // رسم كل نقطة كدائرة كبيرة متدرجة ودمجها
-                
+                // 2. الرسم المتدرج
                 points.forEach(p => {
                     const pt = map.latLngToContainerPoint([p.lat, p.lng]);
-                    
-                    // نصف القطر يعتمد على الزوم لملء الفراغات
-                    const radius = (map.getSize().x / 10); 
+                    // نصف القطر ديناميكي لملء الفراغات
+                    const radius = (size.x / 10) * 1.5; 
                     
                     const grd = ctx.createRadialGradient(pt.x, pt.y, 1, pt.x, pt.y, radius);
-                    const color = getColor(p.val, min, max, variable);
+                    const rgb = getSafeColor(p.val, min, max, variable); // استخدام الدالة الآمنة
                     
-                    // تحويل HEX إلى RGBA للشفافية
-                    const rgb = hexToRgb(color);
                     grd.addColorStop(0, `rgba(${rgb.r},${rgb.g},${rgb.b}, 1)`);
                     grd.addColorStop(1, `rgba(${rgb.r},${rgb.g},${rgb.b}, 0)`);
                     
                     ctx.fillStyle = grd;
-                    ctx.globalAlpha = 0.8; // دمج الألوان
-                    ctx.globalCompositeOperation = 'source-over'; // 'lighten' or 'screen' for blending
+                    ctx.globalAlpha = 0.8;
                     ctx.beginPath();
                     ctx.arc(pt.x, pt.y, radius, 0, 2 * Math.PI);
                     ctx.fill();
@@ -338,26 +365,26 @@
 
         canvasLayer = new L.CanvasLayer();
         map.addLayer(canvasLayer);
-        
         updateLegend(min, max, variable);
     }
 
-    // دوال الألوان (مطابقة للخريطة المرفقة)
-    function getColor(val, min, max, type) {
+    // --- إصلاح: دالة ألوان آمنة ومحمية من null ---
+    function getSafeColor(val, min, max, type) {
         let t = (val - min) / (max - min);
-        if (t < 0) t = 0; if (t > 1) t = 1;
-        if (isNaN(t)) t = 0.5;
+        // حماية من القيم غير المنطقية
+        if (isNaN(t) || t === null || t === undefined) t = 0.5;
+        if (t < 0) t = 0;
+        if (t > 1) t = 1;
 
         if (type === 'rain') {
-            // تدرج الطيف (Rainbow) كما في الصورة اليسرى
-            // أحمر (جاف) -> أصفر -> أخضر -> أزرق -> بنفسجي/أبيض (ممطر)
+            // أحمر -> أصفر -> أخضر -> أزرق -> أبيض
             if (t < 0.20) return interpolateColor('#d7191c', '#fdae61', t/0.20);
             if (t < 0.40) return interpolateColor('#fdae61', '#ffffbf', (t-0.20)/0.20);
             if (t < 0.60) return interpolateColor('#ffffbf', '#abdda4', (t-0.40)/0.20);
             if (t < 0.80) return interpolateColor('#abdda4', '#2b83ba', (t-0.60)/0.20);
             return interpolateColor('#2b83ba', '#ffffff', (t-0.80)/0.20);
         } else {
-            // تدرج الحرارة: أزرق -> أخضر -> أصفر -> برتقالي
+            // أزرق -> أصفر -> أحمر
             if (t < 0.33) return interpolateColor('#2c7bb6', '#abd9e9', t/0.33);
             if (t < 0.66) return interpolateColor('#abd9e9', '#fdae61', (t-0.33)/0.33);
             return interpolateColor('#fdae61', '#d7191c', (t-0.66)/0.34);
@@ -367,44 +394,38 @@
     function interpolateColor(c1, c2, factor) {
         const rgb1 = hexToRgb(c1);
         const rgb2 = hexToRgb(c2);
+        // في حال فشل التحويل، عد لوناً أسود لتجنب الانهيار
+        if (!rgb1 || !rgb2) return {r:0, g:0, b:0}; 
+
         const r = Math.round(rgb1.r + factor * (rgb2.r - rgb1.r));
         const g = Math.round(rgb1.g + factor * (rgb2.g - rgb1.g));
         const b = Math.round(rgb1.b + factor * (rgb2.b - rgb1.b));
-        return `rgb(${r},${g},${b})`;
+        return {r:r, g:g, b:b};
     }
 
     function hexToRgb(hex) {
+        // حماية ضد المدخلات الفارغة
+        if (!hex || typeof hex !== 'string') return {r:0, g:0, b:0};
+        
         const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
         return result ? {
             r: parseInt(result[1], 16),
             g: parseInt(result[2], 16),
             b: parseInt(result[3], 16)
-        } : null;
+        } : {r:0, g:0, b:0}; // إعادة لون افتراضي بدلاً من null
     }
 
     function updateLegend(min, max, variable) {
         const legend = document.getElementById('legend');
         const bar = document.getElementById('gradientBar');
         const labels = document.getElementById('legendLabels');
-        
-        legend.style.display = 'block';
         const unit = variable === 'rain' ? 'mm' : '°C';
         
-        if (variable === 'rain') {
-             bar.style.background = 'linear-gradient(to top, #d7191c, #fdae61, #ffffbf, #abdda4, #2b83ba, #ffffff)';
-        } else {
-             bar.style.background = 'linear-gradient(to top, #2c7bb6, #abd9e9, #fdae61, #d7191c)';
-        }
+        legend.style.display = 'block';
+        if (variable === 'rain') bar.style.background = 'linear-gradient(to top, #d7191c, #fdae61, #ffffbf, #abdda4, #2b83ba, #ffffff)';
+        else bar.style.background = 'linear-gradient(to top, #2c7bb6, #abd9e9, #fdae61, #d7191c)';
 
-        labels.innerHTML = `
-            <span>${max.toFixed(1)} ${unit}</span>
-            <span>${((max+min)/2).toFixed(1)}</span>
-            <span>${min.toFixed(1)} ${unit}</span>
-        `;
-    }
-
-    function downloadImage() {
-        alert("لالتقاط الصورة بدقة عالية، يفضل استخدام أداة Screenshot الخاصة بالمتصفح أو Windows (Win+Shift+S) لأن المتصفح يمنع تحميل Canvas الطبقات الخارجية لأسباب أمنية.");
+        labels.innerHTML = `<span>${max.toFixed(1)} ${unit}</span><span>${((max+min)/2).toFixed(1)}</span><span>${min.toFixed(1)} ${unit}</span>`;
     }
 </script>
 </body>
